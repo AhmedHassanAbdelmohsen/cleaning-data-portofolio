@@ -1,180 +1,151 @@
---showing all the data 
-select * from [protfolio(cleaning data)]..nationalhousing
+-- 1. Display all data in the national housing dataset
+SELECT * FROM [protfolio(cleaning data)]..nationalhousing;
 
---adjust the saledate formate 
+-- 2. Format the SaleDate column (Convert to Date)
+SELECT SaleDate FROM [protfolio(cleaning data)]..nationalhousing;
 
-select SaleDate from [protfolio(cleaning data)]..nationalhousing
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET SaleDate = CONVERT(DATE, SaleDate);
 
-update [protfolio(cleaning data)]..nationalhousing
-set SaleDate= convert(date,SaleDate)
+-- 3. Create a new column for the converted date and update it
+ALTER TABLE [protfolio(cleaning data)]..nationalhousing
+ADD converteddate DATE;
 
-alter table [protfolio(cleaning data)]..nationalhousing
-add converteddate date;
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET converteddate = CONVERT(DATE, SaleDate);
 
+-- 4. Verify the new converted date column
+SELECT converteddate FROM [protfolio(cleaning data)]..nationalhousing;
 
-update [protfolio(cleaning data)]..nationalhousing
-set converteddate= convert(date,SaleDate)
 
-select converteddate from nationalhousing
+-- 5. Clean the PropertyAddress column (Filling NULL values)
+SELECT a.ParcelID, a.PropertyAddress, b.ParcelID, b.PropertyAddress, 
+       ISNULL(a.PropertyAddress, b.PropertyAddress) AS CleanedAddress
+FROM [protfolio(cleaning data)]..nationalhousing a
+JOIN [protfolio(cleaning data)]..nationalhousing b
+ON a.ParcelID = b.ParcelID
+AND a.[UniqueID ] <> b.[UniqueID ]
+WHERE a.PropertyAddress IS NULL;
 
+-- 6. Update PropertyAddress with available values from duplicate records
+UPDATE a
+SET a.PropertyAddress = ISNULL(a.PropertyAddress, b.PropertyAddress)
+FROM [protfolio(cleaning data)]..nationalhousing a
+JOIN [protfolio(cleaning data)]..nationalhousing b
+ON a.ParcelID = b.ParcelID
+AND a.[UniqueID ] <> b.[UniqueID ]
+WHERE a.PropertyAddress IS NULL;
 
---cleaning the address column
+-- 7. Check for remaining NULL values in PropertyAddress
+SELECT PropertyAddress FROM [protfolio(cleaning data)]..nationalhousing
+WHERE PropertyAddress IS NULL;
+
+
+-- 8. Split PropertyAddress into Street and City
+SELECT 
+    SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) - 1) AS AddressStreet,
+    SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) + 1, LEN(PropertyAddress)) AS AddressCity
+FROM [protfolio(cleaning data)]..nationalhousing;
 
+-- 9. Create new columns for street and city
+ALTER TABLE [protfolio(cleaning data)]..nationalhousing
+ADD addstreet VARCHAR(255);
 
-select a.ParcelID,a.PropertyAddress,b.ParcelID,b.PropertyAddress,isnull(a.PropertyAddress,b.PropertyAddress)  
-from [protfolio(cleaning data)]..nationalhousing a 
-join [protfolio(cleaning data)]..nationalhousing b
-on a.ParcelID=b.ParcelID
-and a.[UniqueID ]<>b.[UniqueID ]
-where a.PropertyAddress is null
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET addstreet = SUBSTRING(PropertyAddress, 1, CHARINDEX(',', PropertyAddress) - 1);
 
-update a
-set a.PropertyAddress=isnull(a.PropertyAddress,b.PropertyAddress)
-from [protfolio(cleaning data)]..nationalhousing a 
-join [protfolio(cleaning data)]..nationalhousing b
-on a.ParcelID=b.ParcelID
-and a.[UniqueID ]<>b.[UniqueID ]
-where a.PropertyAddress is null
+ALTER TABLE [protfolio(cleaning data)]..nationalhousing
+ADD addcity VARCHAR(255);
 
---check if there are null values in address
-select PropertyAddress   from [protfolio(cleaning data)]..nationalhousing
-where PropertyAddress is null 
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET addcity = SUBSTRING(PropertyAddress, CHARINDEX(',', PropertyAddress) + 1, LEN(PropertyAddress));
 
--------------------------------------------------------------------------------------
---break the address into seperate columns 
-select SUBSTRING(PropertyAddress,1,CHARINDEX(',', PropertyAddress)-1) as addressing,
-SUBSTRING(PropertyAddress,CHARINDEX(',', PropertyAddress)+1,len(PropertyAddress)) as addressing
-from [protfolio(cleaning data)]..nationalhousing
+-- 10. Verify split columns
+SELECT PropertyAddress, addstreet, addcity FROM [protfolio(cleaning data)]..nationalhousing;
 
-alter table [protfolio(cleaning data)]..nationalhousing
-add addstreet varchar(255) 
 
-update [protfolio(cleaning data)]..nationalhousing
-set addstreet= SUBSTRING(PropertyAddress,1,CHARINDEX(',', PropertyAddress)-1)
+-- 11. Handle missing OwnerAddress values
+SELECT a.ParcelID, a.OwnerAddress, b.ParcelID, b.OwnerAddress
+FROM [protfolio(cleaning data)]..nationalhousing a
+JOIN [protfolio(cleaning data)]..nationalhousing b
+ON a.ParcelID = b.ParcelID
+AND a.[UniqueID ] <> b.[UniqueID ]
+WHERE a.OwnerAddress IS NULL;
 
 
-alter table [protfolio(cleaning data)]..nationalhousing
-add addcity varchar(255)
+-- 12. Split OwnerAddress into Street and City
+SELECT 
+    SUBSTRING(OwnerAddress, 1, CHARINDEX(',', OwnerAddress) - 1) AS OwnerStreet,
+    SUBSTRING(OwnerAddress, CHARINDEX(',', OwnerAddress) + 1, LEN(OwnerAddress)) AS OwnerCity
+FROM [protfolio(cleaning data)]..nationalhousing;
 
-update [protfolio(cleaning data)]..nationalhousing
-set addcity= SUBSTRING(PropertyAddress,CHARINDEX(',', PropertyAddress)+1,len(PropertyAddress))
+-- 13. Create new columns for OwnerStreet and OwnerCity
+ALTER TABLE [protfolio(cleaning data)]..nationalhousing
+ADD ownaddstreet VARCHAR(255);
 
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET ownaddstreet = SUBSTRING(OwnerAddress, 1, CHARINDEX(',', OwnerAddress) - 1);
 
-select PropertyAddress,addstreet,addcity from [protfolio(cleaning data)]..nationalhousing
+ALTER TABLE [protfolio(cleaning data)]..nationalhousing
+ADD ownaddcity VARCHAR(255);
 
----------------------------------------------------
---handle the null in owner address(figured out that the repeated items not inculding extra information about the blank cells)
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET ownaddcity = SUBSTRING(OwnerAddress, CHARINDEX(',', OwnerAddress) + 1, LEN(OwnerAddress));
 
-select a.ParcelID,a.OwnerAddress,b.ParcelID,b.OwnerAddress   from [protfolio(cleaning data)]..nationalhousing a
-join [protfolio(cleaning data)]..nationalhousing b
-on a.ParcelID=b.ParcelID
-and a.[UniqueID ]<>b.[UniqueID ]
-where a.OwnerAddress is null
+-- 14. Verify OwnerAddress split
+SELECT OwnerAddress, ownaddstreet, ownaddcity FROM [protfolio(cleaning data)]..nationalhousing;
 
--------------------------------------
---split owner address 
 
-select OwnerAddress  from [protfolio(cleaning data)]..nationalhousing
-
-select SUBSTRING(OwnerAddress ,1,CHARINDEX(',', OwnerAddress )-1) as addressing,
-SUBSTRING(OwnerAddress ,CHARINDEX(',', OwnerAddress )+1,len(OwnerAddress )) as addressing
-from [protfolio(cleaning data)]..nationalhousing
-
-alter table [protfolio(cleaning data)]..nationalhousing
-add ownaddstreet varchar(255) 
-
-update [protfolio(cleaning data)]..nationalhousing
-set ownaddstreet= SUBSTRING(OwnerAddress,1,CHARINDEX(',', OwnerAddress)-1)
-
-
-alter table [protfolio(cleaning data)]..nationalhousing
-add ownaddcity varchar(255)
-
-update [protfolio(cleaning data)]..nationalhousing
-set ownaddcity= SUBSTRING(OwnerAddress,CHARINDEX(',', OwnerAddress)+1,len(OwnerAddress))
-
-select OwnerAddress,ownaddstreet,ownaddcity  from [protfolio(cleaning data)]..nationalhousing
----------------------------------------------------
---split using parsname 
-select 
-PARSENAME(replace(OwnerAddress,',','.'),3) as street,
-PARSENAME(replace(OwnerAddress,',','.'),2) as city,
-PARSENAME(replace(OwnerAddress,',','.'),1) as state
-
-
-from [protfolio(cleaning data)]..nationalhousing
-
---------------------------------------
---change y and n to yes and no at soldasvacant
-
-select   SoldAsVacant
-from [protfolio(cleaning data)]..nationalhousing
-where SoldAsVacant='y' or SoldAsVacant='n'
-
-update [protfolio(cleaning data)]..nationalhousing
-set SoldAsVacant='YES'
-where SoldAsVacant='y'
-
-update [protfolio(cleaning data)]..nationalhousing
-set SoldAsVacant='NO'
-where SoldAsVacant='n'
-
-select distinct  SoldAsVacant
-from [protfolio(cleaning data)]..nationalhousing
-
------------------------------------------------------
-select SoldAsVacant,case when SoldAsVacant='yes' then 'y'
-else SoldAsVacant end
-from [protfolio(cleaning data)]..nationalhousing
-where SoldAsVacant='yes'
-
------------------------------------------------------------------
---remove depulicates 
-WITH RCt_dup as (
-select * ,
-ROW_NUMBER() over ( partition by parcelid,propertyaddress,saledate,saleprice,legalreference order by uniqueid) row_num  
-from [protfolio(cleaning data)]..nationalhousing
-order by ParcelID)
-select *  from RCt_dup
-where row_num > 1
-order by PropertyAddress
-
---to delete the items  as below 
-delete from RCt_dup
-where row_num > 1
-
-
-
-------------------------------------------------------------------
-
- --delete unused columns 
-
- select * from [protfolio(cleaning data)]..nationalhousing
-
- alter table [protfolio(cleaning data)]..nationalhousing
- drop column PropertyAddress , OwnerAddress
-  
-
-
-  ---------------------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+-- 15. Alternative split method using PARSENAME function
+SELECT 
+    PARSENAME(REPLACE(OwnerAddress, ',', '.'), 3) AS OwnerStreet,
+    PARSENAME(REPLACE(OwnerAddress, ',', '.'), 2) AS OwnerCity,
+    PARSENAME(REPLACE(OwnerAddress, ',', '.'), 1) AS OwnerState
+FROM [protfolio(cleaning data)]..nationalhousing;
+
+
+-- 16. Standardize values in SoldAsVacant column (Convert 'y' to 'YES' and 'n' to 'NO')
+SELECT SoldAsVacant
+FROM [protfolio(cleaning data)]..nationalhousing
+WHERE SoldAsVacant = 'y' OR SoldAsVacant = 'n';
+
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET SoldAsVacant = 'YES'
+WHERE SoldAsVacant = 'y';
+
+UPDATE [protfolio(cleaning data)]..nationalhousing
+SET SoldAsVacant = 'NO'
+WHERE SoldAsVacant = 'n';
+
+-- 17. Verify changes in SoldAsVacant column
+SELECT DISTINCT SoldAsVacant FROM [protfolio(cleaning data)]..nationalhousing;
+
+
+-- 18. Identify duplicate records using ROW_NUMBER()
+WITH RCt_dup AS (
+    SELECT *,
+           ROW_NUMBER() OVER (PARTITION BY ParcelID, PropertyAddress, SaleDate, SalePrice, LegalReference ORDER BY UniqueID) AS row_num  
+    FROM [protfolio(cleaning data)]..nationalhousing
+)
+SELECT * FROM RCt_dup
+WHERE row_num > 1
+ORDER BY PropertyAddress;
+
+-- 19. Delete duplicate records
+DELETE FROM [protfolio(cleaning data)]..nationalhousing
+WHERE UniqueID IN (
+    SELECT UniqueID FROM (
+        SELECT UniqueID, 
+               ROW_NUMBER() OVER (PARTITION BY ParcelID, PropertyAddress, SaleDate, SalePrice, LegalReference ORDER BY UniqueID) AS row_num  
+        FROM [protfolio(cleaning data)]..nationalhousing
+    ) AS DupRecords
+    WHERE row_num > 1
+);
+
+
+-- 20. Delete unused columns PropertyAddress and OwnerAddress
+ALTER TABLE [protfolio(cleaning data)]..nationalhousing
+DROP COLUMN PropertyAddress, OwnerAddress;
+
+-- 21. Final verification of cleaned dataset
+SELECT * FROM [protfolio(cleaning data)]..nationalhousing;
